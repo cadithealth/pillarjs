@@ -318,8 +318,20 @@
 
   });
 
-  // Alias for module.load, but can also take an array. It can also take a string with spaces.
+  /*
+    Calls module.load, but more flexible in terms of arguments.These
+    all return the same result.
+
+      needs('foo', 'bar');
+      needs(['foo', 'bar']);
+      needs('foo bar');
+      needs('foo').concat(needs('bar'));
+  */
   context.needs = function(moduleNames) {
+
+    if (arguments.length > 1) {
+      return context.needs(toArr(arguments));
+    }
 
     if (typeof moduleNames === 'string') {
       var split = moduleNames.split(' ');
