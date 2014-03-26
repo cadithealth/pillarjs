@@ -193,15 +193,17 @@
     - In register, disallow any tag names that can't be used as in function params.
     - Allow namespace needs(). Eg,
 
-    Allow separator option (default=/).
-    needs:
-     'editor: controller view', -> editor/controller, editor/view
-     'gui: controller view'     -> editor/controller, editor/view
+      Allow separator option (default=/).
+      needs:
+       'editor: controller view', -> editor/controller, editor/view
+       'gui: controller view'     -> editor/controller, editor/view
+
+    - Document options
 
 */
 
 
-(function() {
+(function(context) {
 
   'use strict';
 
@@ -317,7 +319,7 @@
   });
 
   // Alias for module.load, but can also take an array. It can also take a string with spaces.
-  window.needs = function(moduleNames) {
+  context.needs = function(moduleNames) {
 
     if (typeof moduleNames === 'string') {
       var split = moduleNames.split(' ');
@@ -342,11 +344,11 @@
   // use needs() instead, but calling this instead makes it clear that
   // you care only about the module's definition code, not whatever
   // (if anything) the module returns.
-  window.runs = function() {
+  context.runs = function() {
     needs.apply(null, arguments);
     return null;
   };
 
-  window.module = loader;
+  context.module = loader;
 
-})();
+})(window);
