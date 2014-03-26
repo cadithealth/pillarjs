@@ -201,6 +201,16 @@
     - Document @options
     - Create option to log module load.
 
+    - Confusing... Update this.modules{} to store Module objects
+    - Change "register" -> "define"
+
+    - Add a module.config function to set default options
+
+    - Update merge function to accept multiple params.
+
+    - Don't create a loader initially. Do this: var package = new Loader; // global
+      so you can split things up into different packages.
+
 */
 
 
@@ -252,6 +262,8 @@
       logOnLoad: false
     };
 
+    this.nthModuleLoaded = 0;
+
   };
 
   // TODO: Make the loader use this format: {
@@ -260,6 +272,7 @@
 
   var loader = new Loader();
 
+  // Loader methods.
   merge(Loader.prototype, {
 
     exists: function(moduleName) {
@@ -282,10 +295,10 @@
         throw 'ModuleError: Module [' + moduleName + '] not found as definition.';
     },
 
-    define: function(moduleName, fn) {
+    define: function(moduleName, fn, options) {
       if (!this.exists(moduleName)) {
         this.modules[moduleName] = {
-          options: merge({}, loader.defaultModuleOptions)
+          options: merge(merge({}, loader.defaultModuleOptions), options)
         };
       }
       return this.modules[moduleName].def = fn;
@@ -317,10 +330,17 @@
         for (var i=0; i < paramNames.length; i++)
           args.push(this.load(paramNames[i]));
 
+        this.nthModuleLoaded += 1;
+
         var moduleThis = {
-          moduleName: moduleName,
-          moduleParams: paramNames
+          moduleName         : moduleName,
+          moduleParams       : paramNames,
+          moduleOptions      : this.modules[moduleName].options,
+          moduleLoadPosition : this.nthModuleLoaded
         };
+
+        if (this.modules[moduleName].options.logOnLoad)
+          console.log('Module #' + this.nthModuleLoaded + ': Loading [' + moduleName + ']');
 
         this.cache(moduleName, module.apply(moduleThis, args));
 
@@ -345,7 +365,7 @@
           option as it allows your app to undermine the behavoir or
           "main" by having multiple entry points.
 
-          @log: Show a message when this module is loaded.
+          @logOnLoad: Show a message when this module is loaded.
 
         }
 
@@ -365,7 +385,7 @@
         throw "ModuleError: Module [" + tag + "] already exists.";
 
       this.define(tag, fn);
-      if (tag === 'main')
+      if (tag === 'main' || options.loadNow)
         this.load(tag);
 
     }
