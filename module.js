@@ -193,12 +193,13 @@
     - In register, disallow any tag names that can't be used as in function params.
     - Allow namespace needs(). Eg,
 
-      Allow separator option (default=/).
-      needs:
-       'editor: controller view', -> editor/controller, editor/view
-       'gui: controller view'     -> editor/controller, editor/view
+        Allow separator option (default=/).
+        needs:
+         'editor: controller view', -> editor/controller, editor/view
+         'gui: controller view'     -> editor/controller, editor/view
 
-    - Document options
+    - Document @options
+    - Create option to log module load.
 
 */
 
@@ -209,6 +210,11 @@
 
   function hasKey(obj, key) {
     return obj.hasOwnProperty(key);
+  }
+
+  // arguments -> array
+  function toArr(args) {
+    return Array.prototype.slice.call(args);
   }
 
   // Merges object @right into object @left and returns object @left.
@@ -232,33 +238,79 @@
   }
 
   function Loader() {
-    this.modules = {};
-    this.cache = {};
+
+    this.modules = {
+      /*
+        def     : fn,
+        cache   : fn,
+        options : {}
+      */
+    };
+
+    this.defaultModuleOptions = {
+      loadNow: false,
+      logOnLoad: false
+    };
+
   };
+
+  // TODO: Make the loader use this format: {
+  //   foo: {module: ..., cache: ..., options}
+  // }
 
   var loader = new Loader();
 
   merge(Loader.prototype, {
 
-
     exists: function(moduleName) {
       return hasKey(this.modules, moduleName);
     },
 
+    isRegistered: function(moduleName) {
+      return this.exists(moduleName) && hasKey(this.modules[moduleName], 'def');
+    },
+
+    inCache: function(moduleName) {
+      return this.exists(moduleName) && hasKey(this.modules[moduleName], 'cache');
+    },
+
     // Get a module. If it doesn't exist, throw an error.
-    get: function(moduleName) {
-      if (this.exists(moduleName))
-        return this.modules[moduleName];
+    getDef: function(moduleName) {
+      if (this.isRegistered(moduleName))
+        return this.modules[moduleName].def;
       else
-        throw 'ModuleError: Module [' + moduleName + '] not found.';
+        throw 'ModuleError: Module [' + moduleName + '] not found as definition.';
+    },
+
+    define: function(moduleName, fn) {
+      if (!this.exists(moduleName)) {
+        this.modules[moduleName] = {
+          options: merge({}, loader.defaultModuleOptions)
+        };
+      }
+      return this.modules[moduleName].def = fn;
+    },
+
+    // Get a cached module. If it doesn't exist, throw an error.
+    queryCache: function(moduleName) {
+      if (this.inCache(moduleName))
+        return this.modules[moduleName].cache;
+      else
+        throw 'ModuleError: Module [' + moduleName + '] not found in cache.';
+    },
+
+    cache: function(moduleName, fn) {
+      if (!this.exists(moduleName))
+        throw "ModuleError: Module [" + moduleName + "] has not been registered."
+      return this.modules[moduleName].cache = fn;
     },
 
     // Loads a module and its dependencies.
     load: function(moduleName) {
 
-      if (!hasKey(this.cache, moduleName)) {
+      if (!this.inCache(moduleName)) {
 
-        var module = this.get(moduleName);
+        var module = this.getDef(moduleName);
         var paramNames = getFnParams(module);
         var args = [];
 
@@ -270,11 +322,11 @@
           moduleParams: paramNames
         };
 
-        this.cache[moduleName] = module.apply(moduleThis, args);
+        this.cache(moduleName, module.apply(moduleThis, args));
 
       }
 
-      return this.cache[moduleName];
+      return this.queryCache(moduleName);
 
     },
 
@@ -297,21 +349,23 @@
 
         }
 
-
       */
 
       if (typeof options === 'undefined')
         var options = {};
 
+      // Problem: This sets the options property on the loader object, not the module.
+      // this.options = merge(merge({}, this.defaultOptions), options);
+
       if (typeof tag !== 'string')
         throw "ModuleError: First parameter must be a unique tag string for the module.";
       else if (tag.length == 0)
         throw "ModuleError: Tag cannot be an empty string.";
-      else if (this.exists(tag))
+      else if (this.isRegistered(tag))
         throw "ModuleError: Module [" + tag + "] already exists.";
 
-      this.modules[tag] = fn;
-      if (tag === 'main' || options.loadNow)
+      this.define(tag, fn);
+      if (tag === 'main')
         this.load(tag);
 
     }
@@ -329,9 +383,8 @@
   */
   context.needs = function(moduleNames) {
 
-    if (arguments.length > 1) {
+    if (arguments.length > 1)
       return context.needs(toArr(arguments));
-    }
 
     if (typeof moduleNames === 'string') {
       var split = moduleNames.split(' ');
