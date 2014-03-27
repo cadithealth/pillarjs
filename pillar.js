@@ -186,8 +186,6 @@
   * TODO
     - Update docs
     - Write unit tests.
-    - What about circular dependencies?
-    - Detect circular dependencies and throw errors.
     - In define, disallow any moduleNames that can't be used as in function params?
     - Disallow certain characters so that namespacing works. Ex: space
     - Allow namespace needs(). Eg,
@@ -201,7 +199,6 @@
     - Add @logAfterLoad option
     - Revise docs
     - Add throwError function
-    - Forbid self-import
 
 */
 
@@ -226,6 +223,15 @@ var pillar = (function() {
     return Array.prototype.slice.call(args);
   }
 
+  function keys(obj) {
+    var results = [];
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key))
+        results.push(key);
+    }
+    return results;
+  }
+
   // Returns the values of an object.
   function values(obj) {
     var results = [];
@@ -234,6 +240,18 @@ var pillar = (function() {
         results.push(obj[key]);
     }
     return results;
+  }
+
+  // Removes a value from an array and returns the array. Uses
+  // identity to check, not equality.
+  function removeFromArr(arr, val) {
+    for (var i=0; i < arr.length; i++) {
+      if (arr[i] === val) {
+        arr.splice(i, 1);
+        return arr;
+      }
+    }
+    return arr;
   }
 
   // Merges object @right into object @left and returns object @left.
@@ -251,7 +269,19 @@ var pillar = (function() {
       results.push(fn(arr[i]));
     }
     return results;
-  };
+  }
+
+  // Gets items in an array that appear more than once.
+  function getDuplicates(arr) {
+    var dupes = [];
+    for (var i=0; i < arr.length - 1; i++) {
+      for (var j=i+1; j < arr.length; j++) {
+        if (arr[i] === arr[j])
+          dupes.push(arr[i]);
+      }
+    }
+    return dupes;
+  }
 
   // Gets function parameters as a list of strings.
   // Source: http://stackoverflow.com/a/9924463/376590
@@ -280,6 +310,9 @@ var pillar = (function() {
 
     this.config(config);
 
+    // Modules being loaded. Used to detect circular imports.
+    this.loading = [];
+
   };
 
   // @pillar.Package.Module
@@ -299,12 +332,21 @@ var pillar = (function() {
       return hasKey(this.modules, moduleName);
     },
 
-    // TODO, cascade
     getModule: function(moduleName) {
       if (this.exists(moduleName))
         return this.modules[moduleName];
-      else
-        throw 'PillarError: Module [' + moduleName + '] not found..';
+      else {
+        var errorMsg = 'PillarError: Module [' + moduleName + '] not found.';
+        for (var key in this.modules) {
+          if (this.modules.hasOwnProperty(key)) {
+            if (moduleName.toLowerCase() === key.toLowerCase()) {
+              errorMsg += ' Did you mean [' + key + ']?';
+              break;
+            }
+          }
+        }
+        throw errorMsg;
+      }
     },
 
     /*
@@ -327,10 +369,11 @@ var pillar = (function() {
         if (split.length > 1)
           return this.needs(split);
         else {
+          var moduleName = moduleNames;
+          var module = this.getModule(moduleName);
           this.nthModuleLoaded += 1;
-          var module = this.getModule(first(split));
           module.nthModuleLoaded = this.nthModuleLoaded;
-          return module.load();
+          return this.load(module);
         }
       }
 
@@ -345,6 +388,29 @@ var pillar = (function() {
 
     },
 
+    load: function(module) {
+      this.addToLoading(module);
+      this.checkCircularDeps();
+      var result = module.load();
+      this.removeFromLoading(module);
+      return result;
+    },
+
+    addToLoading: function(module) {
+      this.loading.push(module.moduleName);
+    },
+
+    removeFromLoading: function(module) {
+      removeFromArr(this.loading, module.moduleName);
+    },
+
+    // Checks if there's a sneaky circular dependency making the rounds.
+    checkCircularDeps: function() {
+      var circularDeps = getDuplicates(this.loading);
+      if (circularDeps.length > 0)
+        throw "PillarError: Circular dependency detected on modules [" + circularDeps.join(', ') + "].";
+      return false;
+    },
 
     /*
       Same as @needs, but always returns undefined. You can always use
