@@ -1,5 +1,5 @@
 /*
-  Module
+  Pillar
   Synchronous dependency resolver.
 
   * What Is it?
@@ -40,10 +40,10 @@
   * Basic Usage
 
     To define a module:
-      module.register(moduleName, function() {...})
+      module.define(moduleName, function() {...})
 
     To include a module:
-      module.register('foobar', function(moduleA, moduleB) {...})
+      module.define('foobar', function(moduleA, moduleB) {...})
     OR
       needs('moduleA', 'moduleB')
 
@@ -63,14 +63,14 @@
      you want to be very strictly modular, you can define adapters
      like so:
 
-       module.register('$', function() {
+       module.define('$', function() {
          var jQuery = jQuery;
          window.$ = null;  // Remove global references to jQuery.
          window.jQuery = null;
          return jQuery;
        });
 
-       module.register('Backbone', function() {
+       module.define('Backbone', function() {
          var Backbone = Backbone;
          window.Backbone = null;
          return Backbone;
@@ -79,9 +79,9 @@
     You might want to package all your adapters into a single
     module like this:
 
-       module.register('adaptors', function() {
+       module.define('adaptors', function() {
 
-         module.register('$', function() {
+         module.define('$', function() {
            var jQuery = jQuery;
            window.$ = null;  // Remove global references to jQuery.
            window.jQuery = null;
@@ -89,7 +89,7 @@
          });
 
 
-         module.register('Backbone', function() {
+         module.define('Backbone', function() {
            var Backbone = Backbone;
            window.Backbone = null;
            return Backbone;
@@ -101,7 +101,7 @@
 
     Then from your main module, you can do this:
 
-      module.register('main', function() {
+      module.define('main', function() {
         runs('adaptors');  // Same as needs, but suppresses return value.
       });
 
@@ -109,8 +109,8 @@
     - Circular dependencies are an issue. Module fails if it
       detects if it detects one. For example, this is critically bad:
 
-        module.register('foo', function(bar) {...});
-        module.register('bar', function(foo) {...});
+        module.define('foo', function(bar) {...});
+        module.define('bar', function(foo) {...});
 
   * Guidelines For A Good Dependency Resolver
     - Doesn't get in the way of:
@@ -148,8 +148,8 @@
 
         // utils.js
 
-        module.register('domUtils', function() {});
-        module.register('strUtils', function(depA, depB) {
+        module.define('domUtils', function() {});
+        module.define('strUtils', function(depA, depB) {
 
           // This has the same effect of listing "depC" in the parameters.
           var depC = needs('depC');
@@ -159,8 +159,8 @@
 
           for (var i=0; i < 4; i++) {
 
-            // Registering modules dynamically.
-            module.register('module' + i, function() {
+            // Defining modules dynamically.
+            module.define('module' + i, function() {
               return i;
             }));
 
@@ -175,12 +175,12 @@
         define(['app/app', 'utils/dom'], function(app, domUtils), {...});
 
         // Module
-        module.register('main', function(app, domUtils) {...});
+        module.define('main', function(app, domUtils) {...});
 
   * Similarities with RequireJS
 
     - Both require an entry point file. RequireJS requires a main.js
-      file. Module simply requires you to register a module named
+      file. Module simply requires you to define a module named
       "main".
 
   * TODO
@@ -190,7 +190,8 @@
     - What about circular dependencies?
     - Detect circular dependencies and throw errors.
     - Allow global/default options.
-    - In register, disallow any tag names that can't be used as in function params.
+    - In define, disallow any moduleNames that can't be used as in function params?
+    - Disallow certain characters so that namespacing works.
     - Allow namespace needs(). Eg,
 
         Allow separator option (default=/).
@@ -202,7 +203,7 @@
     - Create option to log module load.
 
     - Confusing... Update this.modules{} to store Module objects
-    - Change "register" -> "define"
+    - Change "define" -> "define"
 
     - Add a module.config function to set default options
 
@@ -211,10 +212,16 @@
     - Don't create a loader initially. Do this: var package = new Loader; // global
       so you can split things up into different packages.
 
+    - s/module/pillar
+
+    - Add @logAfterLoad option
+
+    - Revisit the isDefined function, this does the same thing as exists doesn't it?
+
 */
 
 
-(function(context) {
+var pillar = (function() {
 
   'use strict';
 
@@ -247,7 +254,7 @@
     return result;
   }
 
-  function Loader() {
+  function Package() {
 
     this.modules = {
       /*
@@ -266,20 +273,14 @@
 
   };
 
-  // TODO: Make the loader use this format: {
-  //   foo: {module: ..., cache: ..., options}
-  // }
-
-  var loader = new Loader();
-
-  // Loader methods.
-  merge(Loader.prototype, {
+  // Package methods
+  merge(Package.prototype, {
 
     exists: function(moduleName) {
       return hasKey(this.modules, moduleName);
     },
 
-    isRegistered: function(moduleName) {
+    isDefined: function(moduleName) {
       return this.exists(moduleName) && hasKey(this.modules[moduleName], 'def');
     },
 
@@ -289,16 +290,16 @@
 
     // Get a module. If it doesn't exist, throw an error.
     getDef: function(moduleName) {
-      if (this.isRegistered(moduleName))
+      if (this.isDefined(moduleName))
         return this.modules[moduleName].def;
       else
         throw 'ModuleError: Module [' + moduleName + '] not found as definition.';
     },
 
-    define: function(moduleName, fn, options) {
+    addModule: function(moduleName, fn, options) {
       if (!this.exists(moduleName)) {
         this.modules[moduleName] = {
-          options: merge(merge({}, loader.defaultModuleOptions), options)
+          options: merge(merge({}, this.defaultModuleOptions), options)
         };
       }
       return this.modules[moduleName].def = fn;
@@ -314,7 +315,7 @@
 
     cache: function(moduleName, fn) {
       if (!this.exists(moduleName))
-        throw "ModuleError: Module [" + moduleName + "] has not been registered."
+        throw "ModuleError: Module [" + moduleName + "] has not been defined."
       return this.modules[moduleName].cache = fn;
     },
 
@@ -332,15 +333,15 @@
 
         this.nthModuleLoaded += 1;
 
+        if (this.modules[moduleName].options.logOnLoad)
+          console.log('Module #' + this.nthModuleLoaded + ': Loading [' + moduleName + ']');
+
         var moduleThis = {
           moduleName         : moduleName,
           moduleParams       : paramNames,
           moduleOptions      : this.modules[moduleName].options,
           moduleLoadPosition : this.nthModuleLoaded
         };
-
-        if (this.modules[moduleName].options.logOnLoad)
-          console.log('Module #' + this.nthModuleLoaded + ': Loading [' + moduleName + ']');
 
         this.cache(moduleName, module.apply(moduleThis, args));
 
@@ -351,10 +352,10 @@
     },
 
     /*
-      Register a module. Similar to RequireJS's define function. Names
-      are case-sensitive.
+      Define a module. Similar to RequireJS's define function. The
+      module name is case-sensitive.
     */
-    register: function(tag, fn, options) {
+    define: function(moduleName, fn, options) {
 
       /*
 
@@ -377,19 +378,25 @@
       // Problem: This sets the options property on the loader object, not the module.
       // this.options = merge(merge({}, this.defaultOptions), options);
 
-      if (typeof tag !== 'string')
-        throw "ModuleError: First parameter must be a unique tag string for the module.";
-      else if (tag.length == 0)
-        throw "ModuleError: Tag cannot be an empty string.";
-      else if (this.isRegistered(tag))
-        throw "ModuleError: Module [" + tag + "] already exists.";
+      if (typeof moduleName !== 'string')
+        throw "ModuleError: First parameter must be a unique string to identify the module.";
+      else if (moduleName.length == 0)
+        throw "ModuleError: Module name cannot be an empty string.";
+      else if (this.isDefined(moduleName))
+        throw "ModuleError: Module [" + moduleName + "] already exists.";
 
-      this.define(tag, fn);
-      if (tag === 'main' || options.loadNow)
-        this.load(tag);
+      this.addModule(moduleName, fn, options);
+      if (moduleName === 'main' || options.loadNow)
+        this.load(moduleName);
 
     }
 
+  });
+
+  function Module() {
+  }
+
+  merge(Module.prototype, {
   });
 
   /*
@@ -401,10 +408,10 @@
       needs('foo bar');
       needs('foo').concat(needs('bar'));
   */
-  context.needs = function(moduleNames) {
+  window.needs = function(moduleNames) {
 
     if (arguments.length > 1)
-      return context.needs(toArr(arguments));
+      return window.needs(toArr(arguments));
 
     if (typeof moduleNames === 'string') {
       var split = moduleNames.split(' ');
@@ -429,11 +436,15 @@
   // use needs() instead, but calling this instead makes it clear that
   // you care only about the module's definition code, not whatever
   // (if anything) the module returns.
-  context.runs = function() {
+  window.runs = function() {
     needs.apply(null, arguments);
     return null;
   };
 
-  context.module = loader;
+  return {'Package': Package};
 
-})(window);
+})();
+
+// call it pillar
+// pillar.package
+// pillar.Package.Module
