@@ -106,7 +106,7 @@
       });
 
   * Issues
-    - Circular dependencies are an issue. Module fails if it
+    - Circular dependencies are an issue. Pillar fails if it
       detects if it detects one. For example, this is critically bad:
 
         module.define('foo', function(bar) {...});
@@ -180,7 +180,7 @@
   * Similarities with RequireJS
 
     - Both require an entry point file. RequireJS requires a main.js
-      file. Module simply requires you to define a module named
+      file. Pillar simply requires you to define a module named
       "main".
 
   * TODO
@@ -200,7 +200,6 @@
     - s/module/pillar
     - Add @logAfterLoad option
     - Revise docs
-    - Change package.defaultOptions -> package.ModuleOptions
     - Add throwError function
     - Forbid self-import
 
@@ -305,7 +304,7 @@ var pillar = (function() {
       if (this.exists(moduleName))
         return this.modules[moduleName];
       else
-        throw 'ModuleError: Module [' + moduleName + '] not found..';
+        throw 'PillarError: Module [' + moduleName + '] not found..';
     },
 
     /*
@@ -385,11 +384,11 @@ var pillar = (function() {
       // this.options = merge(merge({}, this.defaultOptions), options);
 
       if (typeof moduleName !== 'string')
-        throw "ModuleError: First parameter must be a unique string to identify the module.";
+        throw "PillarError: First parameter must be a unique string to identify the module.";
       else if (moduleName.length == 0)
-        throw "ModuleError: Module name cannot be an empty string.";
+        throw "PillarError: Module name cannot be an empty string.";
       else if (this.exists(moduleName))
-        throw "ModuleError: Module [" + moduleName + "] already exists.";
+        throw "PillarError: Module [" + moduleName + "] already exists.";
 
       this.addModule(moduleName, fn, options);
       if (moduleName === 'main' || options.loadNow)
@@ -414,7 +413,7 @@ var pillar = (function() {
       var opts = {};
 
     if (!hasKey(opts, 'package'))
-      throw "ModuleError: You must attach the module to a Project object.";
+      throw "PillarError: You must attach the module to a Package object.";
 
     this.package = opts.package;
     this.moduleName = opts.moduleName;
@@ -454,7 +453,7 @@ var pillar = (function() {
     load: function() {
       if (!this.isCached()) {
         if (this.options.logOnLoad)
-          console.log('Module #' + this.nthModuleLoaded + ': Loading [' + this.moduleName + ']');
+          console.log('Pillar: Loading [' + this.moduleName + ']');
         var paramNames = getFnParams(this.getDefinition());
         var dependencies = this.needs(paramNames);
         this.callDefinition.apply(this, (values(dependencies)));
