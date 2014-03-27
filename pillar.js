@@ -4,7 +4,7 @@
 
   * What Is it?
 
-    Module is a javascript dependency resolver. It helps you structure
+    Pillar is a javascript dependency resolver. It helps you structure
     your app as modules.
 
     Basically, you define your app as a bunch of encapsulated
@@ -33,7 +33,7 @@
     navigate to a route before it's module file has been loaded. In
     production mode, however, it would work.
 
-    In development and production, Module performs loading the same
+    In development and production, Pillar performs loading the same
     way; synchronously. It makes no difference if your files are
     served separately, concatenated, or minified.
 
@@ -126,13 +126,13 @@
   * Differences with RequireJS
 
     - The biggest difference is that this library doesn't do
-      asynchronous loading in dev mode. Module is not a module loader,
+      asynchronous loading in dev mode. Pillar is not a module loader,
       it is a dependency resolver whereas RequireJS is a module loader
       AND a dependency resolver. This actually makes it more
       comparable to Almond than RequireJS.
 
     - RequireJS executes code within a define block as soon as the
-      file is loaded. Module waits until a module is needed before it
+      file is loaded. Pillar waits until a module is needed before it
       executes its define block.
 
     - Doesn't come packaged with a directory traversal or file
@@ -142,7 +142,7 @@
       referenced. The downside to this is that names must be managed,
       but module referencing is more flexible.
 
-    - With Module, you can define a module anywhere and as many as you
+    - With Pillar, you can define a module anywhere and as many as you
       want within a single file. You can also list and get
       dependencies anywhere you want. For example, this is perfectly valid code:
 
@@ -174,7 +174,7 @@
         // RequireJS
         define(['app/app', 'utils/dom'], function(app, domUtils), {...});
 
-        // Module
+        // Pillar
         module.define('main', function(app, domUtils) {...});
 
   * Similarities with RequireJS
@@ -184,14 +184,12 @@
       "main".
 
   * TODO
-    - Give it a trendy name. Eg, Tangler, Lasso, Curkit,
-      standoff. "Module" is too generic and probably taken.
+    - Update docs
     - Write unit tests.
     - What about circular dependencies?
     - Detect circular dependencies and throw errors.
-    - Allow global/default options.
     - In define, disallow any moduleNames that can't be used as in function params?
-    - Disallow certain characters so that namespacing works.
+    - Disallow certain characters so that namespacing works. Ex: space
     - Allow namespace needs(). Eg,
 
         Allow separator option (default=/).
@@ -199,24 +197,12 @@
          'editor: controller view', -> editor/controller, editor/view
          'gui: controller view'     -> editor/controller, editor/view
 
-    - Document @options
-    - Create option to log module load.
-
-    - Confusing... Update this.modules{} to store Module objects
-    - Change "define" -> "define"
-
-    - Add a module.config function to set default options
-
-    - Update merge function to accept multiple params.
-
-    - Don't create a loader initially. Do this: var package = new Loader; // global
-      so you can split things up into different packages.
-
     - s/module/pillar
-
     - Add @logAfterLoad option
-
-    - Revisit the isDefined function, this does the same thing as exists doesn't it?
+    - Revise docs
+    - Change package.defaultOptions -> package.ModuleOptions
+    - Add throwError function
+    - Forbid self-import
 
 */
 
@@ -224,6 +210,13 @@
 var pillar = (function() {
 
   'use strict';
+
+  function first(arr) {
+    if (arr.length > 0)
+      return arr[0];
+    else
+      throw "Error: Object has no items.";
+  }
 
   function hasKey(obj, key) {
     return obj.hasOwnProperty(key);
@@ -234,6 +227,16 @@ var pillar = (function() {
     return Array.prototype.slice.call(args);
   }
 
+  // Returns the values of an object.
+  function values(obj) {
+    var results = [];
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key))
+        results.push(obj[key]);
+    }
+    return results;
+  }
+
   // Merges object @right into object @left and returns object @left.
   function merge(left, right) {
     for (var key in right) {
@@ -242,6 +245,14 @@ var pillar = (function() {
     }
     return left;
   }
+
+  function map(arr, fn) {
+    var results = [];
+    for (var i=0; i < arr.length; i++) {
+      results.push(fn(arr[i]));
+    }
+    return results;
+  };
 
   // Gets function parameters as a list of strings.
   // Source: http://stackoverflow.com/a/9924463/376590
@@ -254,15 +265,12 @@ var pillar = (function() {
     return result;
   }
 
-  function Package() {
+  function Package(config) {
 
-    this.modules = {
-      /*
-        def     : fn,
-        cache   : fn,
-        options : {}
-      */
-    };
+    if (typeof config !== 'undefined')
+      var config = {};
+
+    this.modules = {};
 
     this.defaultModuleOptions = {
       loadNow: false,
@@ -271,88 +279,86 @@ var pillar = (function() {
 
     this.nthModuleLoaded = 0;
 
+    this.config(config);
+
   };
+
+  // @pillar.Package.Module
+  // You won't need to touch this because the proper interface is
+  // @addModule, but it's here if you need it.
+  Package.Module = Module;
 
   // Package methods
   merge(Package.prototype, {
+
+    // Set default module options.
+    config: function(options) {
+      merge(this.defaultModuleOptions, options);
+    },
 
     exists: function(moduleName) {
       return hasKey(this.modules, moduleName);
     },
 
-    isDefined: function(moduleName) {
-      return this.exists(moduleName) && hasKey(this.modules[moduleName], 'def');
-    },
-
-    inCache: function(moduleName) {
-      return this.exists(moduleName) && hasKey(this.modules[moduleName], 'cache');
-    },
-
-    // Get a module. If it doesn't exist, throw an error.
-    getDef: function(moduleName) {
-      if (this.isDefined(moduleName))
-        return this.modules[moduleName].def;
+    // TODO, cascade
+    getModule: function(moduleName) {
+      if (this.exists(moduleName))
+        return this.modules[moduleName];
       else
-        throw 'ModuleError: Module [' + moduleName + '] not found as definition.';
-    },
-
-    addModule: function(moduleName, fn, options) {
-      if (!this.exists(moduleName)) {
-        this.modules[moduleName] = {
-          options: merge(merge({}, this.defaultModuleOptions), options)
-        };
-      }
-      return this.modules[moduleName].def = fn;
-    },
-
-    // Get a cached module. If it doesn't exist, throw an error.
-    queryCache: function(moduleName) {
-      if (this.inCache(moduleName))
-        return this.modules[moduleName].cache;
-      else
-        throw 'ModuleError: Module [' + moduleName + '] not found in cache.';
-    },
-
-    cache: function(moduleName, fn) {
-      if (!this.exists(moduleName))
-        throw "ModuleError: Module [" + moduleName + "] has not been defined."
-      return this.modules[moduleName].cache = fn;
-    },
-
-    // Loads a module and its dependencies.
-    load: function(moduleName) {
-
-      if (!this.inCache(moduleName)) {
-
-        var module = this.getDef(moduleName);
-        var paramNames = getFnParams(module);
-        var args = [];
-
-        for (var i=0; i < paramNames.length; i++)
-          args.push(this.load(paramNames[i]));
-
-        this.nthModuleLoaded += 1;
-
-        if (this.modules[moduleName].options.logOnLoad)
-          console.log('Module #' + this.nthModuleLoaded + ': Loading [' + moduleName + ']');
-
-        var moduleThis = {
-          moduleName         : moduleName,
-          moduleParams       : paramNames,
-          moduleOptions      : this.modules[moduleName].options,
-          moduleLoadPosition : this.nthModuleLoaded
-        };
-
-        this.cache(moduleName, module.apply(moduleThis, args));
-
-      }
-
-      return this.queryCache(moduleName);
-
+        throw 'ModuleError: Module [' + moduleName + '] not found..';
     },
 
     /*
-      Define a module. Similar to RequireJS's define function. The
+      Loads packages. Arguments are flexible. Eg, these all return the
+      same result.
+
+        needs('foo', 'bar');
+        needs(['foo', 'bar']);
+        needs('foo bar');
+    */
+    needs: function(moduleNames) {
+
+      var that = this;
+
+      if (arguments.length > 1)
+        moduleNames = toArr(arguments);
+
+      if (typeof moduleNames === 'string') {
+        var split = moduleNames.split(' ');
+        if (split.length > 1)
+          return this.needs(split);
+        else {
+          this.nthModuleLoaded += 1;
+          var module = this.getModule(first(split));
+          module.nthModuleLoaded = this.nthModuleLoaded;
+          return module.load();
+        }
+      }
+
+      if (moduleNames instanceof Array) {
+        var results = {};
+        for (var i=0; i < moduleNames.length; i++) {
+          var name = moduleNames[i];
+          results[name] = this.needs(name);
+        }
+        return results;
+      }
+
+    },
+
+
+    /*
+      Same as @needs, but always returns undefined. You can always use
+      @load instead, but calling this clarifies that you don't need
+      the return value.
+    */
+    run: function() {
+      this.needs.apply(this, arguments);
+      return undefined;
+    },
+
+    /*
+      Defines a module. Similar to RequireJS's define function. The
       module name is case-sensitive.
     */
     define: function(moduleName, fn, options) {
@@ -382,69 +388,90 @@ var pillar = (function() {
         throw "ModuleError: First parameter must be a unique string to identify the module.";
       else if (moduleName.length == 0)
         throw "ModuleError: Module name cannot be an empty string.";
-      else if (this.isDefined(moduleName))
+      else if (this.exists(moduleName))
         throw "ModuleError: Module [" + moduleName + "] already exists.";
 
       this.addModule(moduleName, fn, options);
       if (moduleName === 'main' || options.loadNow)
-        this.load(moduleName);
+        this.needs(moduleName);
 
+    },
+
+    addModule: function(moduleName, fn, options) {
+      return this.modules[moduleName] = new Module({
+        package: this,
+        moduleName: moduleName,
+        definition : fn,
+        options: merge(merge({}, this.defaultModuleOptions), options)
+      });
     }
 
   });
 
-  function Module() {
+  function Module(opts) {
+
+    if (typeof opts === 'undefined')
+      var opts = {};
+
+    if (!hasKey(opts, 'package'))
+      throw "ModuleError: You must attach the module to a Project object.";
+
+    this.package = opts.package;
+    this.moduleName = opts.moduleName;
+    this.options = merge(merge({}, opts.package.defaultOptions), opts.options);
+
+    this._definition = opts.definition;
+    this._cache = null;
+    this._isCached = false;
+
   }
 
   merge(Module.prototype, {
+
+    cache: function(expr) {
+      this._cache = expr;
+      this._isCached = true;
+      return expr;
+    },
+
+    isCached: function() {
+      return this._isCached;
+    },
+
+    // TODO: This fn shouldn't need to exist. Don't expose internals.
+    getCache: function() {
+      return this._cache;
+    },
+
+    getDefinition: function() {
+      return this._definition;
+    },
+
+    callDefinition: function() {
+      return this.cache(this._definition.apply(this, arguments));
+    },
+
+    load: function() {
+      if (!this.isCached()) {
+        if (this.options.logOnLoad)
+          console.log('Module #' + this.nthModuleLoaded + ': Loading [' + this.moduleName + ']');
+        var paramNames = getFnParams(this.getDefinition());
+        var dependencies = this.needs(paramNames);
+        this.callDefinition.apply(this, (values(dependencies)));
+      }
+      return this.getCache();
+    },
+
+    needs: function() {
+      return this.package.needs.apply(this.package, arguments);
+    },
+
+    run: function() {
+      return this.package.run.apply(this.package, arguments);
+    }
+
   });
 
-  /*
-    Calls module.load, but more flexible in terms of arguments.These
-    all return the same result.
-
-      needs('foo', 'bar');
-      needs(['foo', 'bar']);
-      needs('foo bar');
-      needs('foo').concat(needs('bar'));
-  */
-  window.needs = function(moduleNames) {
-
-    if (arguments.length > 1)
-      return window.needs(toArr(arguments));
-
-    if (typeof moduleNames === 'string') {
-      var split = moduleNames.split(' ');
-      if (split.length > 1)
-        moduleNames = split;
-      else
-        return loader.load(moduleNames);
-    }
-
-    if (moduleNames instanceof Array) {
-      var moduleRets = {};
-      for (var i=0; i < moduleNames.length; i++) {
-        var name = moduleNames[i];
-        moduleRets[name] = loader.load(name);
-      }
-      return moduleRets;
-    }
-
-  };
-
-  // Alias for needs(), but suppresses return value. You can always
-  // use needs() instead, but calling this instead makes it clear that
-  // you care only about the module's definition code, not whatever
-  // (if anything) the module returns.
-  window.runs = function() {
-    needs.apply(null, arguments);
-    return null;
-  };
-
-  return {'Package': Package};
+  return {Package: Package};
 
 })();
-
-// call it pillar
-// pillar.package
-// pillar.Package.Module
