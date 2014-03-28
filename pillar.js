@@ -195,10 +195,10 @@
          'editor: controller view', -> editor/controller, editor/view
          'gui: controller view'     -> editor/controller, editor/view
 
-    - s/module/pillar
     - Add @logAfterLoad option
     - Revise docs
-    - Add throwError function
+    - Add package.global('define|method') method.
+    - Optimize for file size (reduce repetition - add each function).
 
 */
 
@@ -219,8 +219,10 @@ var pillar = (function() {
   }
 
   // arguments -> array
-  function toArr(args) {
-    return Array.prototype.slice.call(args);
+  function toArr(args, index) {
+    if (typeof index === 'undefined')
+      var index = 0;
+    return Array.prototype.slice.call(args, index);
   }
 
   function keys(obj) {
@@ -294,6 +296,32 @@ var pillar = (function() {
     return result;
   }
 
+  /*
+    Formats a string with an object. Example:
+
+      fmt('{foo} there {bar}', {foo: 'Hello', bar: 'World'}) -> Hello there World
+  */
+  function fmt(str, obj) {
+    var re = new RegExp('{([a-z]*)}', 'g');
+    return str.replace(re, function(found, captured) {
+      if (!hasKey(obj, captured))
+        throw 'Error: Key "' + captured + '" was not found.'
+      return obj[captured]
+    });
+  }
+
+  // Mixin to produce convenient error functions.
+  function errorMixin(errorType) {
+    return {
+      error: function(errorMessage, obj) {
+        throw 'PillarError[' + errorType + ']: ' + fmt(errorMessage, obj);
+      },
+      errorIf: function(cond) {
+        return cond ? this.error.apply(this, toArr(arguments, 1)) : false;
+      }
+    }
+  };
+
   function Package(config) {
 
     if (typeof config !== 'undefined')
@@ -320,6 +348,8 @@ var pillar = (function() {
   // @addModule, but it's here if you need it.
   Package.Module = Module;
 
+  merge(Package.prototype, errorMixin('Package'));
+
   // Package methods
   merge(Package.prototype, {
 
@@ -336,16 +366,17 @@ var pillar = (function() {
       if (this.exists(moduleName))
         return this.modules[moduleName];
       else {
-        var errorMsg = 'PillarError: Module [' + moduleName + '] not found.';
+        var errorMsg = 'PillarError: Module [{module}] not found.';
+        var lower = moduleName.toLowerCase();
         for (var key in this.modules) {
           if (this.modules.hasOwnProperty(key)) {
-            if (moduleName.toLowerCase() === key.toLowerCase()) {
-              errorMsg += ' Did you mean [' + key + ']?';
+            if (lower === key.toLowerCase()) {
+              errorMsg += ' Did you mean [{lower}]?';
               break;
             }
           }
         }
-        throw errorMsg;
+        this.error(errorMsg, {module: moduleName, lower: lower});
       }
     },
 
@@ -407,9 +438,12 @@ var pillar = (function() {
     // Checks if there's a sneaky circular dependency making the rounds.
     checkCircularDeps: function() {
       var circularDeps = getDuplicates(this.loading);
-      if (circularDeps.length > 0)
-        throw "PillarError: Circular dependency detected on modules [" + circularDeps.join(', ') + "].";
-      return false;
+      var errorMessage;
+      return this.errorIf(
+        circularDeps.length > 0,
+        "Circular dependency detected on modules [{modules}].",
+        {modules: circularDeps.join(', ')}
+      );
     },
 
     /*
@@ -446,15 +480,12 @@ var pillar = (function() {
       if (typeof options === 'undefined')
         var options = {};
 
-      // Problem: This sets the options property on the loader object, not the module.
-      // this.options = merge(merge({}, this.defaultOptions), options);
-
-      if (typeof moduleName !== 'string')
-        throw "PillarError: First parameter must be a unique string to identify the module.";
-      else if (moduleName.length == 0)
-        throw "PillarError: Module name cannot be an empty string.";
-      else if (this.exists(moduleName))
-        throw "PillarError: Module [" + moduleName + "] already exists.";
+      this.errorIf(typeof moduleName !== 'string',
+                   "First parameter must be a unique string to identify the module.");
+      this.errorIf(moduleName.length == 0,
+                   "Module name cannot be an empty string.");
+      this.errorIf(this.exists(moduleName),
+                   "Module [{module}] already exists.", {module: moduleName});
 
       this.addModule(moduleName, fn, options);
       if (moduleName === 'main' || options.loadNow)
@@ -479,7 +510,7 @@ var pillar = (function() {
       var opts = {};
 
     if (!hasKey(opts, 'package'))
-      throw "PillarError: You must attach the module to a Package object.";
+      this.error("You must attach the module to a Package object.");
 
     this.package = opts.package;
     this.moduleName = opts.moduleName;
@@ -490,6 +521,8 @@ var pillar = (function() {
     this._isCached = false;
 
   }
+
+  merge(Module.prototype, errorMixin('Module'));
 
   merge(Module.prototype, {
 
