@@ -191,6 +191,7 @@
     - Revise docs
     - Add package.global('define|method') method.
     - Optimize for file size (reduce repetition - add each function).
+    -
 
 */
 
