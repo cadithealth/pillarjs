@@ -613,5 +613,3 @@ var pillar = (function() {
   return {Package: Package};
 
 })();
-
-// git test change
