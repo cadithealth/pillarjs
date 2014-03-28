@@ -451,7 +451,12 @@ var pillar = (function() {
       var results = {};
       for (var i=0; i < modules.length; i++)
         results[modules[i]] = this.load(modules[i]);
-      return results;
+      if (arguments.length == 1
+          && typeof moduleNames === 'string'
+          && moduleNames.split(/\s+/).length == 1)
+        return values(results)[0]
+      else
+        return results;
     },
 
     load: function(module) {
