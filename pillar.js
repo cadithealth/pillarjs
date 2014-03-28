@@ -310,6 +310,10 @@ var pillar = (function() {
     });
   }
 
+  function log(str) {
+    return console.log.apply(console, ['Pillar:'].concat(toArr(arguments)));
+  }
+
   // Mixin to produce convenient error functions.
   function errorMixin(errorType) {
     return {
@@ -331,7 +335,8 @@ var pillar = (function() {
 
     this.defaultModuleOptions = {
       loadNow: false,
-      logOnLoad: false
+      logOnLoad: false,
+      logAfterLoad: false
     };
 
     this.nthModuleLoaded = 0;
@@ -552,10 +557,12 @@ var pillar = (function() {
     load: function() {
       if (!this.isCached()) {
         if (this.options.logOnLoad)
-          console.log('Pillar: Loading [' + this.moduleName + ']');
+          log('Loading [' + this.moduleName + '].');
         var paramNames = getFnParams(this.getDefinition());
         var dependencies = this.needs(paramNames);
         this.callDefinition.apply(this, (values(dependencies)));
+        if (this.options.logAfterLoad)
+          log('Finished loading [' + this.moduleName + '].');
       }
       return this.getCache();
     },
