@@ -195,7 +195,6 @@
          'editor: controller view', -> editor/controller, editor/view
          'gui: controller view'     -> editor/controller, editor/view
 
-    - Add @logAfterLoad option
     - Revise docs
     - Add package.global('define|method') method.
     - Optimize for file size (reduce repetition - add each function).
@@ -485,12 +484,17 @@ var pillar = (function() {
       if (typeof options === 'undefined')
         var options = {};
 
+      if (typeof fn === 'undefined')
+        var fn = function(){};
+
       this.errorIf(typeof moduleName !== 'string',
                    "First parameter must be a unique string to identify the module.");
       this.errorIf(moduleName.length == 0,
                    "Module name cannot be an empty string.");
       this.errorIf(this.exists(moduleName),
                    "Module [{module}] already exists.", {module: moduleName});
+      this.errorIf(typeof fn !== 'function',
+                   "You must pass in a function.")
 
       this.addModule(moduleName, fn, options);
       if (moduleName === 'main' || options.loadNow)
@@ -505,6 +509,17 @@ var pillar = (function() {
         definition : fn,
         options: merge(merge({}, this.defaultModuleOptions), options)
       });
+    },
+
+    // Makes the @define method global. This is useful if you only
+    // want a need package for your entire app.
+    global: function(context) {
+      if (typeof context === 'undefined')
+        var context = window;
+      var that = this;
+      context.define = function() {
+        return that.define.apply(that, arguments);
+      };
     }
 
   });
