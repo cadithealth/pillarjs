@@ -592,7 +592,6 @@ var pillar = (function() {
       return this._isCached;
     },
 
-    // TODO: This fn shouldn't need to exist. Don't expose internals.
     getCache: function() {
       return this._cache;
     },
