@@ -188,13 +188,6 @@
     - Write unit tests.
     - In define, disallow any moduleNames that can't be used as in function params?
     - Disallow certain characters so that namespacing works. Ex: space, comma, colon
-    - Allow namespace needs(). Eg,
-
-        Allow separator option (default=/).
-        needs:
-         'editor: controller view', -> editor/controller, editor/view
-         'gui: controller view'     -> editor/controller, editor/view
-
     - Revise docs
     - Add package.global('define|method') method.
     - Optimize for file size (reduce repetition - add each function).
@@ -211,6 +204,17 @@ var pillar = (function() {
       return arr[0];
     else
       throw "Error: Object has no items.";
+  }
+
+  function last(arr) {
+    if (arr.length > 0)
+      return arr[arr.length - 1];
+    else
+      throw "Error: Object has no items.";
+  }
+
+  function trim(str) {
+    return str.replace(/^\s+|\s+$/g,'');
   }
 
   function hasKey(obj, key) {
@@ -330,8 +334,21 @@ var pillar = (function() {
     if (arguments.length > 1)
       moduleNames = toArr(arguments);
 
-    if (typeof moduleNames === 'string')
-      return moduleNames.split(' ');
+    if (typeof moduleNames === 'string') {
+
+      var split = moduleNames.split(/\s+/);
+      var namespace = first(split);
+
+      if (last(namespace) === ':' && split.length > 1) {
+        var namespace = namespace.replace(/:$/, '/');
+        return map(split.slice(1), function(module) {
+          return namespace + module;
+        });
+      }
+
+      return split;
+
+    }
 
     if (moduleNames instanceof Array) {
       var results = [];
@@ -358,6 +375,8 @@ var pillar = (function() {
   // log_parseNeeds(['foo', 'bar'], 'hey there', 'now');
   // log_parseNeeds(['foo', 'bar'], 'hey there', ['now']);
   // log_parseNeeds(['foo', 'bar'], 'hey there', ['now', 'and']);
+  // log_parseNeeds('foo: a b c d');
+  // log_parseNeeds('foo: a b c d', ['bar: a b c', ['qux: a b']]);
 
   function Package(config) {
 
