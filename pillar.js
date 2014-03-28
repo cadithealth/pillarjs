@@ -187,7 +187,7 @@
     - Update docs
     - Write unit tests.
     - In define, disallow any moduleNames that can't be used as in function params?
-    - Disallow certain characters so that namespacing works. Ex: space
+    - Disallow certain characters so that namespacing works. Ex: space, comma, colon
     - Allow namespace needs(). Eg,
 
         Allow separator option (default=/).
@@ -323,7 +323,41 @@ var pillar = (function() {
         return cond ? this.error.apply(this, toArr(arguments, 1)) : false;
       }
     }
-  };
+  }
+
+  function parseNeeds(moduleNames) {
+
+    if (arguments.length > 1)
+      moduleNames = toArr(arguments);
+
+    if (typeof moduleNames === 'string')
+      return moduleNames.split(' ');
+
+    if (moduleNames instanceof Array) {
+      var results = [];
+      for (var i=0; i < moduleNames.length; i++)
+        results = results.concat(parseNeeds(moduleNames[i]));
+      return results;
+    }
+
+  }
+
+  function log_parseNeeds() {
+    console.log(toArr(arguments), parseNeeds.apply(null, arguments));
+  }
+
+  // // TODO: Move this into testing.
+  // // Testing:
+  // log_parseNeeds('foo');
+  // log_parseNeeds('foo bar qux');
+  // log_parseNeeds('foo', 'bar', 'qux');
+  // log_parseNeeds(['foo', 'bar', 'qux']);
+  // log_parseNeeds(['foo', 'bar'], 'qux');
+  // log_parseNeeds(['foo', 'bar'], ['qux']);
+  // log_parseNeeds(['foo', 'bar'], 'hey there');
+  // log_parseNeeds(['foo', 'bar'], 'hey there', 'now');
+  // log_parseNeeds(['foo', 'bar'], 'hey there', ['now']);
+  // log_parseNeeds(['foo', 'bar'], 'hey there', ['now', 'and']);
 
   function Package(config) {
 
@@ -388,42 +422,23 @@ var pillar = (function() {
       Loads packages. Arguments are flexible. Eg, these all return the
       same result.
 
-        needs('foo', 'bar');
-        needs(['foo', 'bar']);
-        needs('foo bar');
+        needs('foo bar qux');
+        needs('foo', 'bar', 'qux');
+        needs(['foo', 'bar', 'qux']);
+        needs(['foo', 'bar'], 'qux');
+        needs(['foo', 'bar'], ['qux']);
     */
     needs: function(moduleNames) {
-
-      var that = this;
-
-      if (arguments.length > 1)
-        moduleNames = toArr(arguments);
-
-      if (typeof moduleNames === 'string') {
-        var split = moduleNames.split(' ');
-        if (split.length > 1)
-          return this.needs(split);
-        else {
-          var moduleName = moduleNames;
-          var module = this.getModule(moduleName);
-          this.nthModuleLoaded += 1;
-          module.nthModuleLoaded = this.nthModuleLoaded;
-          return this.load(module);
-        }
-      }
-
-      if (moduleNames instanceof Array) {
-        var results = {};
-        for (var i=0; i < moduleNames.length; i++) {
-          var name = moduleNames[i];
-          results[name] = this.needs(name);
-        }
-        return results;
-      }
-
+      var modules = parseNeeds.apply(null, arguments);
+      var results = {};
+      for (var i=0; i < modules.length; i++)
+        results[modules[i]] = this.load(modules[i]);
+      return results;
     },
 
     load: function(module) {
+      if (typeof module === 'string')
+        module = this.getModule(module);
       this.addToLoading(module);
       this.checkCircularDeps();
       var result = module.load();
@@ -432,17 +447,20 @@ var pillar = (function() {
     },
 
     addToLoading: function(module) {
+      if (typeof module === 'string')
+        module = this.getModule(module);
       this.loading.push(module.moduleName);
     },
 
     removeFromLoading: function(module) {
+      if (typeof module === 'string')
+        module = this.getModule(module);
       removeFromArr(this.loading, module.moduleName);
     },
 
     // Checks if there's a sneaky circular dependency making the rounds.
     checkCircularDeps: function() {
       var circularDeps = getDuplicates(this.loading);
-      var errorMessage;
       return this.errorIf(
         circularDeps.length > 0,
         "Circular dependency detected on modules [{modules}].",
