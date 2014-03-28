@@ -189,9 +189,7 @@
     - In define, disallow any moduleNames that can't be used as in function params?
     - Disallow certain characters so that namespacing works. Ex: space, comma, colon
     - Revise docs
-    - Add package.global('define|method') method.
     - Optimize for file size (reduce repetition - add each function).
-    -
 
 */
 
