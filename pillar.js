@@ -433,6 +433,7 @@ var pillar = (function() {
     // Set default module options.
     config: function(options) {
       merge(this.defaultModuleOptions, options);
+      return this;
     },
 
     exists: function(moduleName) {
