@@ -16,6 +16,12 @@ var compose = function(fn) {
   };
 };
 
+var bind = function(fn, context) {
+  return function() {
+    return fn.apply(context, arguments)
+  }
+};
+
 describe("Util", function() {
 
   // Make functions in util available in current scrope.
@@ -145,9 +151,39 @@ describe("Util", function() {
 
 });
 
-// describe("Package", function() {
-//   // Todo
-// });
+describe("Package", function() {
+
+  // Todo
+
+  var app;
+
+  beforeEach(function() {
+    app = new pillar.Package();
+  });
+
+  it("creates a basic module", function() {
+    compose(bind(app.define, app), 'foo').should.not.throw();
+  });
+
+  describe("creating two packages of the same name", function() {
+    it("should throw an error", function() {
+      (function() {
+        app.define('foo');
+        app.define('foo');
+      }).should.throw();
+    });
+  });
+
+  it("Imports a module", function() {
+    app.define('foo', function() {
+      return 'I am foo';
+    });
+    app.define('bar', function(foo) {
+      foo.should.equal('I am foo');
+    }, {loadNow: true});
+  });
+
+});
 
 // describe("Module", function() {
 //   // Todo
