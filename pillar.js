@@ -562,6 +562,8 @@ var pillar = (function() {
       if (moduleName === 'main' || options.loadNow)
         this.needs(moduleName);
 
+      return this;
+
     },
 
     addModule: function(moduleName, fn, options) {
