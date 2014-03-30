@@ -190,6 +190,7 @@
     - Disallow certain characters so that namespacing works. Ex: space, comma, colon
     - Revise docs
     - Optimize for file size (reduce repetition - add each function).
+    - Make compatible on all browsers.
 
 */
 
@@ -230,7 +231,7 @@ var pillar = (function() {
   function keys(obj) {
     var results = [];
     for (var key in obj) {
-      if (obj.hasOwnProperty(key))
+      if (hasKey(obj, key))
         results.push(key);
     }
     return results;
@@ -240,7 +241,7 @@ var pillar = (function() {
   function values(obj) {
     var results = [];
     for (var key in obj) {
-      if (obj.hasOwnProperty(key))
+      if (hasKey(obj, key))
         results.push(obj[key]);
     }
     return results;
@@ -267,11 +268,32 @@ var pillar = (function() {
     return left;
   }
 
-  function map(arr, fn) {
-    var results = [];
-    for (var i=0; i < arr.length; i++) {
-      results.push(fn(arr[i]));
+  function isArray(list) {
+    return list instanceof Array;
+  }
+
+  function each(list, fn, context) {
+    if (typeof context === 'undefined')
+      var context = null;
+    if (isArray(list)) {
+      for (var i=0; i < list.length; i++)
+        fn.call(context, list[i], i, list);
+    } else {
+      for (var key in list) {
+        if (hasKey(list, key))
+          fn.call(context, list[key], key, list);
+      }
     }
+    return list;
+  }
+
+  function map(list, fn, context) {
+    if (typeof context === 'undefined')
+      var context = null;
+    var results = [];
+    each(list, function() {
+      results.push(fn.apply(context, arguments));
+    });
     return results;
   }
 
@@ -285,6 +307,20 @@ var pillar = (function() {
       }
     }
     return dupes;
+  }
+
+  function getFnName(fn) {
+    var s = fn.toString()
+      .substr('function '.length)
+    return s.substr(0, s.indexOf('('));
+  }
+
+  function makeNamesDict() {
+    var dict = {};
+    each(arguments, function(fn) {
+      dict[getFnName(fn)] = fn;
+    });
+    return dict;
   }
 
   // Gets function parameters as a list of strings.
@@ -349,7 +385,7 @@ var pillar = (function() {
 
     }
 
-    if (moduleNames instanceof Array) {
+    if (isArray(moduleNames)) {
       var results = [];
       for (var i=0; i < moduleNames.length; i++)
         results = results.concat(parseNeeds(moduleNames[i]));
@@ -399,11 +435,6 @@ var pillar = (function() {
 
   };
 
-  // @pillar.Package.Module
-  // You won't need to touch this because the proper interface is
-  // @addModule, but it's here if you need it.
-  Package.Module = Module;
-
   merge(Package.prototype, errorMixin('Package'));
 
   // Package methods
@@ -425,7 +456,7 @@ var pillar = (function() {
         var errorMsg = 'PillarError: Module [{module}] not found.';
         var lower = moduleName.toLowerCase();
         for (var key in this.modules) {
-          if (this.modules.hasOwnProperty(key)) {
+          if (hasKey(this.modules, key)) {
             if (lower === key.toLowerCase()) {
               errorMsg += ' Did you mean [{lower}]?';
               break;
@@ -632,6 +663,14 @@ var pillar = (function() {
 
   });
 
-  return {Package: Package};
+  var util = makeNamesDict(
+    first, last, trim, hasKey, toArr,
+    keys, values, removeFromArr, merge,
+    isArray, each, map, getDuplicates,
+    getFnName, makeNamesDict, getFnParams,
+    fmt
+  );
+
+  return {Package: Package, Module: Module, util: util};
 
 })();
