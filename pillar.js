@@ -185,12 +185,11 @@
 
   * TODO
     - Update docs
-    - Write unit tests.
+    - Write unit tests for Package and Module.
     - In define, disallow any moduleNames that can't be used as in function params?
     - Disallow certain characters so that namespacing works. Ex: space, comma, colon
-    - Revise docs
     - Optimize for file size (reduce repetition - add each function).
-    - Make compatible on all browsers.
+    - Make compatible on all browsers (IE6+).
 
 */
 
@@ -203,7 +202,7 @@ var pillar = (function() {
     if (arr.length > 0)
       return arr[0];
     else
-      throw "Error: Object has no items.";
+      throw "Error: Array has no items.";
   }
 
   function last(arr) {
@@ -217,8 +216,20 @@ var pillar = (function() {
     return str.replace(/^\s+|\s+$/g,'');
   }
 
-  function hasKey(obj, key) {
-    return obj.hasOwnProperty(key);
+  function index(arr, val) {
+    if (typeof Array.prototype.indexOf !== 'undefined')
+      return arr.indexOf(val);
+    for (var i=0; i < arr.length; i++)
+      if (arr[i] === val)
+        return i;
+    return -1;
+  }
+
+  function has(col, lookFor) {
+    if (isArray(col))
+      return index(col, lookFor) !== -1;
+    else
+      return col.hasOwnProperty(lookFor);
   }
 
   // arguments -> array
@@ -229,22 +240,16 @@ var pillar = (function() {
   }
 
   function keys(obj) {
-    var results = [];
-    for (var key in obj) {
-      if (hasKey(obj, key))
-        results.push(key);
-    }
-    return results;
+    return map(obj, function(val, key) {
+      return key;
+    });
   }
 
   // Returns the values of an object.
   function values(obj) {
-    var results = [];
-    for (var key in obj) {
-      if (hasKey(obj, key))
-        results.push(obj[key]);
-    }
-    return results;
+    return map(obj, function(val, key) {
+      return val;
+    });
   }
 
   // Removes a value from an array and returns the array. Uses
@@ -262,7 +267,7 @@ var pillar = (function() {
   // Merges object @right into object @left and returns object @left.
   function merge(left, right) {
     for (var key in right) {
-      if (hasKey(right, key))
+      if (has(right, key))
         left[key] = right[key];
     }
     return left;
@@ -280,7 +285,7 @@ var pillar = (function() {
         fn.call(context, list[i], i, list);
     } else {
       for (var key in list) {
-        if (hasKey(list, key))
+        if (has(list, key))
           fn.call(context, list[key], key, list);
       }
     }
@@ -302,7 +307,7 @@ var pillar = (function() {
     var dupes = [];
     for (var i=0; i < arr.length - 1; i++) {
       for (var j=i+1; j < arr.length; j++) {
-        if (arr[i] === arr[j])
+        if (arr[i] === arr[j] && index(dupes, arr[i]) === -1)
           dupes.push(arr[i]);
       }
     }
@@ -312,7 +317,7 @@ var pillar = (function() {
   function getFnName(fn) {
     var s = fn.toString()
       .substr('function '.length)
-    return s.substr(0, s.indexOf('('));
+    return s.substr(0, index(s, '('));
   }
 
   function makeNamesDict() {
@@ -328,8 +333,8 @@ var pillar = (function() {
   function getFnParams(fn) {
     var STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
     var fnStr = fn.toString().replace(STRIP_COMMENTS, '');
-    var result = fnStr.slice(fnStr.indexOf('(') + 1, fnStr.indexOf(')')).match(/([^\s,]+)/g);
-    if (result == null)
+    var result = fnStr.slice(index(fnStr, '(') + 1, index(fnStr, ')')).match(/([^\s,]+)/g);
+    if (result === null)
       result = [];
     return result;
   }
@@ -342,7 +347,7 @@ var pillar = (function() {
   function fmt(str, obj) {
     var re = new RegExp('{([a-z]*)}', 'g');
     return str.replace(re, function(found, captured) {
-      if (!hasKey(obj, captured))
+      if (!has(obj, captured))
         throw 'Error: Key "' + captured + '" was not found.'
       return obj[captured]
     });
@@ -398,21 +403,6 @@ var pillar = (function() {
     console.log(toArr(arguments), parseNeeds.apply(null, arguments));
   }
 
-  // // TODO: Move this into testing.
-  // // Testing:
-  // log_parseNeeds('foo');
-  // log_parseNeeds('foo bar qux');
-  // log_parseNeeds('foo', 'bar', 'qux');
-  // log_parseNeeds(['foo', 'bar', 'qux']);
-  // log_parseNeeds(['foo', 'bar'], 'qux');
-  // log_parseNeeds(['foo', 'bar'], ['qux']);
-  // log_parseNeeds(['foo', 'bar'], 'hey there');
-  // log_parseNeeds(['foo', 'bar'], 'hey there', 'now');
-  // log_parseNeeds(['foo', 'bar'], 'hey there', ['now']);
-  // log_parseNeeds(['foo', 'bar'], 'hey there', ['now', 'and']);
-  // log_parseNeeds('foo: a b c d');
-  // log_parseNeeds('foo: a b c d', ['bar: a b c', ['qux: a b']]);
-
   function Package(config) {
 
     if (typeof config !== 'undefined')
@@ -446,7 +436,7 @@ var pillar = (function() {
     },
 
     exists: function(moduleName) {
-      return hasKey(this.modules, moduleName);
+      return has(this.modules, moduleName);
     },
 
     getModule: function(moduleName) {
@@ -456,7 +446,7 @@ var pillar = (function() {
         var errorMsg = 'PillarError: Module [{module}] not found.';
         var lower = moduleName.toLowerCase();
         for (var key in this.modules) {
-          if (hasKey(this.modules, key)) {
+          if (has(this.modules, key)) {
             if (lower === key.toLowerCase()) {
               errorMsg += ' Did you mean [{lower}]?';
               break;
@@ -482,9 +472,9 @@ var pillar = (function() {
       var results = {};
       for (var i=0; i < modules.length; i++)
         results[modules[i]] = this.load(modules[i]);
-      if (arguments.length == 1
+      if (arguments.length === 1
           && typeof moduleNames === 'string'
-          && moduleNames.split(/\s+/).length == 1)
+          && moduleNames.split(/\s+/).length === 1)
         return values(results)[0]
       else
         return results;
@@ -561,7 +551,7 @@ var pillar = (function() {
 
       this.errorIf(typeof moduleName !== 'string',
                    "First parameter must be a unique string to identify the module.");
-      this.errorIf(moduleName.length == 0,
+      this.errorIf(moduleName.length === 0,
                    "Module name cannot be an empty string.");
       this.errorIf(this.exists(moduleName),
                    "Module [{module}] already exists.", {module: moduleName});
@@ -601,7 +591,7 @@ var pillar = (function() {
     if (typeof opts === 'undefined')
       var opts = {};
 
-    if (!hasKey(opts, 'package'))
+    if (!has(opts, 'package'))
       this.error("You must attach the module to a Package object.");
 
     this.package = opts.package;
@@ -664,13 +654,18 @@ var pillar = (function() {
   });
 
   var util = makeNamesDict(
-    first, last, trim, hasKey, toArr,
+    first, last, trim, index, has, toArr,
     keys, values, removeFromArr, merge,
     isArray, each, map, getDuplicates,
     getFnName, makeNamesDict, getFnParams,
-    fmt
+    fmt, parseNeeds
   );
 
   return {Package: Package, Module: Module, util: util};
 
 })();
+
+// CommonJS
+if (typeof module !== 'undefined' && typeof exports !== 'undefined') {
+  module.exports = pillar;
+}
