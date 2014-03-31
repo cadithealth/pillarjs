@@ -559,8 +559,8 @@ var pillar = (function() {
       this.errorIf(typeof fn !== 'function',
                    "You must pass in a function.")
 
-      this.addModule(moduleName, fn, options);
-      if (moduleName === 'main' || options.loadNow)
+      var module = this.addModule(moduleName, fn, merge({}, merge(this.defaultModuleOptions, options)));
+      if (moduleName === 'main' || module.options.loadNow)
         this.needs(moduleName);
 
       return this;
@@ -572,7 +572,7 @@ var pillar = (function() {
         package: this,
         moduleName: moduleName,
         definition : fn,
-        options: merge(merge({}, this.defaultModuleOptions), options)
+        options: options
       });
     },
 
