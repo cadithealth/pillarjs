@@ -185,7 +185,6 @@
 
   * TODO
     - Update docs
-    - Write unit tests for Package and Module.
     - In define, disallow any moduleNames that can't be used as in function params?
     - Disallow certain characters so that namespacing works. Ex: space, comma, colon
     - Optimize for file size (reduce repetition - add each function).
