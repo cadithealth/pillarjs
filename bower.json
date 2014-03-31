@@ -1,0 +1,24 @@
+{
+  "name": "pillarjs",
+  "version": "0.1.0",
+  "authors": [
+    "David Yeung <quxbaz@gmail.com>"
+  ],
+  "description": "Javascript package and module resolver.",
+  "main": "pillar.js",
+  "moduleType": [
+    "globals",
+    "node"
+  ],
+  "keywords": [
+    "module"
+  ],
+  "license": "MIT",
+  "homepage": "none",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+  ]
+}
