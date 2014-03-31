@@ -4,15 +4,26 @@
 
 
 var should = require('./chai').should();
-var expect = require('./chai').expect;
 var pillar = require('../pillar');
 var util = pillar.util;
 var error = pillar.error;
+var sinon = require('./sinon/lib/sinon');
 
-var compose = function(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
+// Helpers
+
+/*
+  Syntax:
+    compose(fn)(args) -> fn
+  Example:
+    var fn = compose(Math.min, Math)(2, 5);
+    fn() -> 2
+*/
+var compose = function(fn, context) {
   return function() {
-    return fn.apply(null, args);
+    var args = arguments;
+    return function() {
+      return fn.apply(context, args);
+    };
   };
 };
 
@@ -34,27 +45,27 @@ describe("Util", function() {
   });
 
   describe("first", function() {
-    it("should return the first value of an array", function() {
+    it("returns the first value of an array", function() {
       first(this.simpleArr).should.equal(1);
     });
-    it("should throw an error", function() {
-      compose(first, []).should.throw();
+    it("throws an error", function() {
+      compose(first)([]).should.throw();
       first.should.throw();
     });
   });
 
   describe("last", function() {
-    it("should return the last value of an array", function() {
+    it("returns the last value of an array", function() {
       last(this.simpleArr).should.equal(4);
     });
-    it("should throw an error", function() {
-      compose(last, []).should.throw();
+    it("throws an error", function() {
+      compose(last)([]).should.throw();
       last.should.throw();
     });
   });
 
   describe("trim", function() {
-    it("should remove spaces around a string", function() {
+    it("removes spaces around a string", function() {
       trim('  hello world   ').should.equal('hello world');
       trim('    ').should.equal('');
       trim('').should.equal('');
@@ -62,7 +73,7 @@ describe("Util", function() {
   });
 
   describe("index", function() {
-    it("should return the index of a value in an array", function() {
+    it("returns the index of a value in an array", function() {
       index(this.simpleArr, 2).should.equal(1);
       index(['a', 'b', 'c', 'd'], 'd').should.equal(3);
       index(this.simpleArr, 'foobar').should.equal(-1);
@@ -70,53 +81,53 @@ describe("Util", function() {
   });
 
   describe("has", function() {
-    it("should return true if a collection has a value", function() {
+    it("returns true if a collection has a value", function() {
       has(this.simpleArr, 3).should.be.true;
       has(this.simpleArr, 42).should.be.false;
     });
   });
 
   describe("keys", function() {
-    it("should return the keys of a dict", function() {
+    it("returns the keys of a dict", function() {
       keys(this.simpleObj).should.eql(['a', 'b', 'c', 'd']);
     });
   });
 
   describe("values", function() {
-    it("should return the values of a dict", function() {
+    it("returns the values of a dict", function() {
       values(this.simpleObj).should.eql([1, 2, 3, 4]);
     });
   });
 
   describe("getDuplicates", function() {
-    it("should return duplicate values in an array", function() {
+    it("returns duplicate values in an array", function() {
       getDuplicates([1, 2, 3, 1, 1, 2]).should.eql([1, 2]);
     });
   });
 
 
   describe("getFnName", function() {
-    it("should return a function's name", function() {
+    it("returns a function's name", function() {
       getFnName(function foobar(){}).should.equal('foobar');
     });
   });
 
   describe("getFnParams", function() {
-    it("should return the parameter names of a function", function() {
+    it("returns the parameter names of a function", function() {
       getFnParams(function(foo, bar,    qux,   baz){})
         .should.eql(['foo', 'bar', 'qux', 'baz']);
     });
   });
 
   describe("fmt", function() {
-    it("should format a string", function() {
+    it("formats a string", function() {
       fmt('{foo} there {bar}', {foo: 'hello', bar: 'world'}).should.equal('hello there world');
     });
   });
 
   // Todo: Split this into separate functions.
   describe("parseNeeds", function() {
-    it("should format a list of requirements into a flat array", function() {
+    it("formats a list of requirements into a flat array", function() {
 
       var foobarqux = ['foo', 'bar', 'qux'];
       var foobarheythere = ['foo', 'bar', 'hey', 'there'];
@@ -162,19 +173,10 @@ describe("Package", function() {
   });
 
   it("creates a basic module", function() {
-    compose(bind(app.define, app), 'foo').should.not.throw();
+    compose(app.define, app)('foo').should.not.throw();
   });
 
-  describe("creating two packages of the same name", function() {
-    it("should throw an error", function() {
-      (function() {
-        app.define('foo');
-        app.define('foo');
-      }).should.throw();
-    });
-  });
-
-  it("Imports a module", function() {
+  it("imports a module", function() {
     app.define('foo', function() {
       return 'I am foo';
     });
@@ -183,8 +185,83 @@ describe("Package", function() {
     }, {loadNow: true});
   });
 
+  it("imports itself and throws an error", function() {
+    compose(app.define, app)('foo', function(foo){}, {loadNow: true})
+      .should.throw();
+  });
+
+  it("defines a main module and runs immediately", function() {
+    var ran = false;
+    app.define('main', function() {
+      ran = true;
+    });
+    ran.should.be.true;
+  });
+
+  it("defines a non-main module and does not run immediately", function() {
+    var ran = false;
+    app.define('foo');
+    ran.should.be.false;
+  });
+
+  it("creates a circular dependency and throws an error", function() {
+    app.define('foo');
+    app.define('bar', function(qux){});
+    app.define('qux', function(foo, bar){});
+    app.define('main', function() {
+      compose(this.needs, this)('qux').should.throw(/Circular/);
+    });
+  });
+
+  it("imports a module and gets its return value", function() {
+    app.define('answer', function() {
+      return function(){return 42};
+    });
+    app.define('main', function(answer) {
+      answer().should.equal(42);
+    });
+  });
+
+  it("creates two packages with the same name and throws an error", function() {
+    app.define('foo');
+    compose(app.define, app)('foo').should.throw();
+  });
+
+  it("loads 3 modules with namespacing", function() {
+    app.define('foo/a', function(){return 'foo/a'});
+    app.define('foo/b', function(){return 'foo/b'});
+    app.define('foo/c', function(){return 'foo/c'});
+    app.define('main', function() {
+      var deps = this.needs('foo: a b c');
+      deps.should.eql({
+        'foo/a': deps['foo/a'],
+        'foo/b': deps['foo/b'],
+        'foo/c': deps['foo/c']
+      });
+    });
+  });
+
+  it("configures all modules to load immediately", function() {
+    app.config({loadNow: true});
+    var spy = sinon.spy();
+    app.define('bar', function(){spy()});
+    app.define('foo', function(){spy()});
+    spy.calledTwice.should.be.true;
+  });
+
+  it("expects a module definition to be called only once", function() {
+    var spy = sinon.spy();
+    app.define('foo', function(){spy()});
+    spy.called.should.be.false;
+    app.define('main', function(foo) {
+      this.needs('foo');
+      this.needs('foo');
+    });
+    app.define('bar', function(foo){}, {loadNow: true});
+    spy.calledOnce.should.be.true;
+  });
+
 });
 
 // describe("Module", function() {
-//   // Todo
 // });
