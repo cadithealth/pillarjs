@@ -419,6 +419,9 @@ var pillar = (function() {
 
     this.config(config);
 
+    if (config.global)
+      this.global();
+
     // Modules being loaded. Used to detect circular imports.
     this.loading = [];
 

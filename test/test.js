@@ -261,6 +261,15 @@ describe("Package", function() {
     spy.calledOnce.should.be.true;
   });
 
+  it("initializes a package to be global to the module or window namespace.", function() {
+    var pkg = new pillar.Package();
+    if (typeof module !== 'undefined')
+      pkg.global(module);
+    else if (typeof window !== 'undefined')
+      pkg.global(module);
+    (typeof module.define).should.equal('function');
+  });
+
 });
 
 // describe("Module", function() {
