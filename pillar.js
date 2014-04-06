@@ -189,6 +189,7 @@
     - Disallow certain characters so that namespacing works. Ex: space, comma, colon
     - Optimize for file size (reduce repetition - add each function).
     - Make compatible on all browsers (IE6+).
+    - Allow unnamed packages.
 
 */
 
