@@ -404,7 +404,7 @@ var pillar = (function() {
 
   function Package(config) {
 
-    if (typeof config !== 'undefined')
+    if (typeof config === 'undefined')
       var config = {};
 
     this.modules = {};
