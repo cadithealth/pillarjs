@@ -190,6 +190,8 @@
     - Optimize for file size (reduce repetition - add each function).
     - Make compatible on all browsers (IE6+).
     - Allow unnamed packages.
+    - Allow runOnDefine/load option on packages like this:
+        new Package({runOnLoad: 'App'})
 
 */
 
