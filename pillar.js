@@ -533,8 +533,8 @@ var pillar = (function() {
       @load instead, but calling this clarifies that you don't need
       the return value.
     */
-    run: function() {
-      this.needs.call(this, arguments);
+    run: function(moduleNames, callingModule) {
+      this.needs.call(this, moduleNames, callingModule);
       return undefined;
     },
 

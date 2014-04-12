@@ -303,4 +303,17 @@ describe("Package", function() {
     spy.calledOnce.should.be.true;
   });
 
+  it("calls .run and expects undefined to be returned", function() {
+    var spy = sinon.spy();
+    app.define('util/foo', function() {spy(); return 'foo';})
+    app.define('util/bar', function() {spy(); return 'bar';})
+    app.define('util', function() {
+      (typeof this.run('./foo')).should.equal('undefined');
+      (typeof this.run('./bar')).should.equal('undefined');
+      (typeof this.run('./foo ./bar')).should.equal('undefined');
+      spy();
+    }, {loadNow: true});
+    spy.calledThrice.should.be.true;
+  });
+
 });
