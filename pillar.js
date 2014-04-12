@@ -371,38 +371,40 @@ var pillar = (function() {
     }
   }
 
+  // Always returns a flat array of module names.
   function parseNeeds(moduleNames) {
 
-    if (arguments.length > 1)
-      moduleNames = toArr(arguments);
+    var parse = function(moduleNames) {
+      if (arguments.length > 1)
+        var moduleNames = toArr(arguments);
 
-    if (typeof moduleNames === 'string') {
+      if (typeof moduleNames === 'string') {
 
-      var split = moduleNames.split(/\s+/);
-      var namespace = first(split);
+        var split = moduleNames.split(/\s+/);
+        var namespace = first(split);
 
-      if (last(namespace) === ':' && split.length > 1) {
-        var namespace = namespace.replace(/:$/, '/');
-        return map(split.slice(1), function(module) {
-          return namespace + module;
-        });
+        if (last(namespace) === ':' && split.length > 1) {
+          var namespace = namespace.replace(/:$/, '/');
+          return map(split.slice(1), function(moduleName) {
+            return namespace + moduleName;
+          });
+        }
+
+        return split;
+
       }
 
-      return split;
+      if (isArray(moduleNames)) {
+        var results = [];
+        for (var i=0; i < moduleNames.length; i++)
+          results = results.concat(parse(moduleNames[i]));
+        return results;
+      }
+    };
 
-    }
+    var results = parse.apply(null, arguments);
+    return results;
 
-    if (isArray(moduleNames)) {
-      var results = [];
-      for (var i=0; i < moduleNames.length; i++)
-        results = results.concat(parseNeeds(moduleNames[i]));
-      return results;
-    }
-
-  }
-
-  function log_parseNeeds() {
-    console.log(toArr(arguments), parseNeeds.apply(null, arguments));
   }
 
   function Package(config) {

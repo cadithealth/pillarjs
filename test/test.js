@@ -270,6 +270,22 @@ describe("Package", function() {
     (typeof module.define).should.equal('function');
   });
 
+  // it("Correctly interprets './' to mean the current module name within an import.", function() {
+  //   var spy = sinon.spy();
+  //   app.define('todo/models', function() {
+  //     return 'models';
+  //   });
+  //   app.define('todo/views', function() {
+  //     return 'views';
+  //   });
+  //   app.define('todo', function() {
+  //     spy();
+  //     this.needs('./models').should.equal('models');
+  //     this.needs('./views').should.equal('views');
+  //   }, {loadNow: true});
+  //   spy.calledOnce.should.be.true;
+  // });
+
 });
 
 // describe("Module", function() {
