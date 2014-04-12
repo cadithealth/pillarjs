@@ -372,7 +372,7 @@ var pillar = (function() {
   }
 
   // Always returns a flat array of module names.
-  function parseNeeds(moduleNames) {
+  function parseNeeds(moduleNames, callingModule) {
 
     var parse = function(moduleNames) {
       if (arguments.length > 1)
@@ -402,7 +402,15 @@ var pillar = (function() {
       }
     };
 
-    var results = parse.apply(null, arguments);
+    var namespaceWithCaller = function(needs) {
+      return map(needs, function(moduleName) {
+        return moduleName.replace(/^\.\//, callingModule + '/');
+      });
+    };
+
+    var results = parse.apply(null, moduleNames);
+    if (typeof callingModule !== 'undefined')
+      results = namespaceWithCaller(results);
     return results;
 
   }
@@ -475,14 +483,14 @@ var pillar = (function() {
         needs(['foo', 'bar'], 'qux');
         needs(['foo', 'bar'], ['qux']);
     */
-    needs: function(moduleNames) {
-      var modules = parseNeeds.apply(null, arguments);
+    needs: function(moduleNames, callingModule) {
+      var modules = parseNeeds.call(null, moduleNames, callingModule);
       var results = {};
       for (var i=0; i < modules.length; i++)
         results[modules[i]] = this.load(modules[i]);
-      if (arguments.length === 1
-          && typeof moduleNames === 'string'
-          && moduleNames.split(/\s+/).length === 1)
+      if (moduleNames.length === 1
+          && typeof first(moduleNames) === 'string'
+          && first(moduleNames).split(/\s+/).length === 1)
         return values(results)[0]
       else
         return results;
@@ -526,7 +534,7 @@ var pillar = (function() {
       the return value.
     */
     run: function() {
-      this.needs.apply(this, arguments);
+      this.needs.call(this, arguments);
       return undefined;
     },
 
@@ -568,7 +576,7 @@ var pillar = (function() {
 
       var module = this.addModule(moduleName, fn, merge({}, merge(this.defaultModuleOptions, options)));
       if (moduleName === 'main' || module.options.loadNow)
-        this.needs(moduleName);
+        this.needs([moduleName]);
 
       return this;
 
@@ -654,11 +662,11 @@ var pillar = (function() {
     },
 
     needs: function() {
-      return this.package.needs.apply(this.package, arguments);
+      return this.package.needs.call(this.package, arguments, this.moduleName);
     },
 
     run: function() {
-      return this.package.run.apply(this.package, arguments);
+      return this.package.run.call(this.package, arguments, this.moduleName);
     }
 
   });

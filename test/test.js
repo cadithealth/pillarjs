@@ -135,27 +135,28 @@ describe("Util", function() {
       var foobarheytherenowand = ['foo', 'bar', 'hey', 'there', 'now', 'and'];
       var abcd = ['foo/a', 'foo/b', 'foo/c', 'foo/d'];
 
-      parseNeeds('foo').should.eql(['foo']);
+      parseNeeds(['foo']).should.eql(['foo']);
 
-      parseNeeds('foo bar qux').should.eql(foobarqux);
-      parseNeeds('foo', 'bar', 'qux').should.eql(foobarqux);
+      parseNeeds(['foo bar qux']).should.eql(foobarqux);
       parseNeeds(['foo', 'bar', 'qux']).should.eql(foobarqux);
-      parseNeeds(['foo', 'bar'], 'qux').should.eql(foobarqux);
-      parseNeeds(['foo', 'bar'], ['qux']).should.eql(foobarqux);
+      parseNeeds([['foo', 'bar', 'qux']]).should.eql(foobarqux);
+      parseNeeds([['foo', 'bar'], 'qux']).should.eql(foobarqux);
+      parseNeeds([['foo', 'bar'], ['qux']]).should.eql(foobarqux);
 
-      parseNeeds(['foo', 'bar'], 'hey there').should.eql(foobarheythere);
-      parseNeeds(['foo', 'bar'], 'hey there', 'now').should.eql(foobarheytherenow);
-      parseNeeds(['foo', 'bar'], 'hey there', ['now']).should.eql(foobarheytherenow);
+      parseNeeds([['foo', 'bar'], 'hey there']).should.eql(foobarheythere);
+      parseNeeds([['foo', 'bar'], 'hey there', 'now']).should.eql(foobarheytherenow);
+      parseNeeds([['foo', 'bar'], 'hey there', ['now']]).should.eql(foobarheytherenow);
 
-      parseNeeds(['foo', 'bar'], 'hey there', ['now', 'and']).should.eql(foobarheytherenowand);
+      parseNeeds([['foo', 'bar'], 'hey there', ['now', 'and']]).should.eql(foobarheytherenowand);
 
-      parseNeeds('foo: a b c d').should.eql(abcd);
-      parseNeeds('foo: a b', ['bar: a b c', ['qux: a b']])
+      parseNeeds(['foo: a b c d']).should.eql(abcd);
+      parseNeeds(['foo: a b', ['bar: a b c', ['qux: a b']]])
         .should.eql([
           'foo/a', 'foo/b',
           'bar/a', 'bar/b', 'bar/c',
           'qux/a', 'qux/b'
         ]);
+
     });
 
   });
@@ -222,6 +223,22 @@ describe("Package", function() {
     });
   });
 
+  it("calls needs() with a single string and expects a module object", function() {
+    app.define('foo', function() {return 'foo'});
+    app.define('main', function() {
+      this.needs('foo').should.equal('foo');
+    });
+  });
+
+  it("calls needs() with an array of strings and expects a hash of module objects", function() {
+    app.define('foo', function() {return 'foo'});
+    app.define('bar', function() {return 'bar'});
+    app.define('main', function() {
+      this.needs('foo', 'bar').should.eql({foo: 'foo', bar: 'bar'});
+      this.needs(['foo', 'bar']).should.eql({foo: 'foo', bar: 'bar'});
+    });
+  });
+
   it("creates two packages with the same name and throws an error", function() {
     app.define('foo');
     compose(app.define, app)('foo').should.throw();
@@ -270,23 +287,20 @@ describe("Package", function() {
     (typeof module.define).should.equal('function');
   });
 
-  // it("Correctly interprets './' to mean the current module name within an import.", function() {
-  //   var spy = sinon.spy();
-  //   app.define('todo/models', function() {
-  //     return 'models';
-  //   });
-  //   app.define('todo/views', function() {
-  //     return 'views';
-  //   });
-  //   app.define('todo', function() {
-  //     spy();
-  //     this.needs('./models').should.equal('models');
-  //     this.needs('./views').should.equal('views');
-  //   }, {loadNow: true});
-  //   spy.calledOnce.should.be.true;
-  // });
+  it("interprets './' to mean the current module name within an import.", function() {
+    var spy = sinon.spy();
+    app.define('todo/models', function() {return 'models'});
+    app.define('todo/views', function() {return 'views'});
+    app.define('todo', function() {
+      spy();
+      this.needs('./models').should.equal('models');
+      this.needs('./views').should.equal('views');
+      this.needs('./models', './views').should.eql({
+        'todo/models' : 'models',
+        'todo/views'  : 'views'
+      });
+    }, {loadNow: true});
+    spy.calledOnce.should.be.true;
+  });
 
 });
-
-// describe("Module", function() {
-// });
